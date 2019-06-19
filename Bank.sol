@@ -1,59 +1,53 @@
-// First, a simple Bank contract
-// Allows deposits, withdrawals, and balance checks
+// A simple Bank contract
+// Allows creating account, deposits and withdrawals
 pragma solidity 0.4.25;
 
 contract Bank {
-    // dictionary that maps addresses to balances
-    // always be careful about overflow attacks with numbers
-    mapping (address => uint) private balances;
+    address owner = msg.sender;
     
-    address public owner;
-
-    // Events - publicize actions to external listeners
-    event LogDepositMade(address accountAddress, uint amount);
-
-    constructor () public {
-        // msg provides details about the message that's sent to the contract
-        // msg.sender is contract caller (address of contract creator)
-        owner = msg.sender;
+    struct AccountStruct {
+        string name;
+        uint currentBalance;
     }
-
-    /// @notice Deposit tokens into bank
-    /// @return The balance of the user after the deposit is made
+    
+    mapping (address => AccountStruct) private balances;
+    
+    function createAccount(string name) public payable returns (bool) {
+        AccountStruct memory acc = AccountStruct(name, 0);
+        
+        balances[msg.sender] = acc;
+        
+        return true;
+    }
+    
     function deposit() public payable returns (uint) {
-        balances[msg.sender] += msg.value;
-
-        // fire event
-        emit LogDepositMade(msg.sender, msg.value);
-
-        return balances[msg.sender];
+        AccountStruct memory acc = balances[msg.sender];
+        
+        assert(balances[msg.sender].currentBalance != 0);
+        
+        if (! slabReached(msg.sender)) {
+            acc.currentBalance += msg.value;
+        }
+        return acc.currentBalance;
     }
-
-    /// @notice Withdraw token from bank
-    /// @dev This does not return any excess tokens sent to it
-    /// @param withdrawAmount amount you want to withdraw
-    /// @return The balance remaining for the user
+    
+    function slabReached(address accountAddress) internal view returns (bool) {
+        return balances[accountAddress].currentBalance == 100;
+    }
+    
+    function assertCondition(bool condition) public {
+        // do some assertions here based on the system requirements
+    }
+    
     function withdraw(uint withdrawAmount) public returns (uint remainingBal) {
-        if(balances[msg.sender] >= withdrawAmount) {
-            // Note the way we deduct the balance right away, before sending - due to
-            // the risk of a recursive call that allows the caller to request an amount greater
-            // than their balance
-            balances[msg.sender] -= withdrawAmount;
+        AccountStruct memory acc = balances[msg.sender];
+        if(acc.currentBalance >= withdrawAmount) {
+            acc.currentBalance -= withdrawAmount;
 
             if (!msg.sender.send(withdrawAmount)) {
-                // increment back only on fail, as may be sending to contract that
-                // has overridden 'send' on the receipt end
-                balances[msg.sender] += withdrawAmount;
+                acc.currentBalance += withdrawAmount;
             }
         }
-
-        return balances[msg.sender];
-    }
-
-    /// @notice Get balance
-    /// @return The balance of the user
-    // 'constant' prevents function from editing state variables;
-    function balance() public constant returns (uint) {
-        return balances[msg.sender];
+        return acc.currentBalance;
     }
 }
